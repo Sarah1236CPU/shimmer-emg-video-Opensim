@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shimmer3R · multi · live</title>
+<style>
+  :root {
+    --bg:#0d1117; --panel:#131a24; --line:#243244; --ink:#e6edf3; --ink-dim:#7d8da3;
+    --accent:#4ad6c8; --warn:#f0883e; --ok:#7ee787; --rec:#ff7b72;
+    --mono: ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;
+    --sans:"Inter",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5}
+  header{display:flex;align-items:baseline;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:16px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+  header .sub{color:var(--ink-dim);font-family:var(--mono);font-size:12px}
+  main{display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 55px)}
+  .controls{padding:18px 20px;border-right:1px solid var(--line);overflow-y:auto}
+  .stage{display:flex;flex-direction:column;min-width:0}
+  .scope-wrap{flex:1;overflow-y:auto;background:#0a0e14}
+  canvas{display:block;width:100%}
+  fieldset{border:1px solid var(--line);border-radius:8px;margin:0 0 16px;padding:13px}
+  legend{padding:0 6px;color:var(--ink-dim);font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+  label.row{display:flex;align-items:center;gap:9px;padding:3px 0;cursor:pointer}
+  label.row input{accent-color:var(--accent)}
+  .field{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
+  .field input[type=number]{width:84px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-family:var(--mono);text-align:right}
+  .field select{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-family:var(--mono);font-size:12px}
+  button{width:100%;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);font:inherit;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s}
+  button:hover:not(:disabled){border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#04201d;border-color:var(--accent)}
+  button.rec{border-color:var(--rec);color:var(--rec)}
+  button.rec.active{background:var(--rec);color:#2a0a08}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .btns{display:flex;flex-direction:column;gap:8px}
+  .dev{border:1px solid var(--line);border-radius:7px;padding:9px;margin-bottom:8px}
+  .dev .top{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .dev input.name{flex:1;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:4px 7px;font-family:var(--mono);font-size:12px}
+  .dev .x{width:auto;padding:4px 9px;font-size:12px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-dim);flex:0 0 auto}
+  .dot.on{background:var(--ok);box-shadow:0 0 7px var(--ok)}
+  .dot.stream{background:var(--accent);box-shadow:0 0 7px var(--accent)}
+  .readout{font-family:var(--mono);font-size:12px;color:var(--ink-dim);margin-top:8px}
+  .readout b{color:var(--ink)}
+  .log{height:120px;border-top:1px solid var(--line);overflow-y:auto;padding:8px 14px;font-family:var(--mono);font-size:12px;color:var(--ink-dim);background:#070a0f}
+  .log .err{color:var(--warn)} .log .good{color:var(--ok)}
+  .hint{color:var(--ink-dim);font-size:12px;margin:8px 0 0}
+  code{font-family:var(--mono);color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Shimmer3R · multi</h1>
+  <span class="sub" id="hdr">web bluetooth · 0 appareil</span>
+</header>
+
+<main>
+  <section class="controls">
+    <fieldset>
+      <legend>Appareils</legend>
+      <div id="devList"></div>
+      <button id="btnAdd" class="primary">+ Ajouter un appareil</button>
+      <p class="hint">Chrome/Edge sur <code>localhost</code>. Un clic = un appareil à choisir dans le sélecteur.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Capteurs (appliqués à tous)</legend>
+      <label class="row"><input type="checkbox" data-sensor="SENSOR_A_ACCEL" checked> Accéléro low-noise</label>
+      <label class="row"><input type="checkbox" data-sensor="SENSOR_GYRO" checked> Gyroscope</label>
+      <label class="row"><input type="checkbox" data-sensor="SENSOR_MAG"> Magnétomètre</label>
+      <label class="row"><input type="checkbox" data-sensor="SENSOR_D_ACCEL"> Accéléro wide-range</label>
+      <label class="row"><input type="checkbox" data-sensor="SENSOR_PRESSURE"> Pression / temp.</label>
+      <label class="row"><input type="checkbox" data-sensor="SENSOR_GSR"> GSR</label>
+      <div class="field" style="margin-top:8px"><span>ExG (carte SR47)</span>
+        <select id="exgMode">
+          <option value="none">aucun</option>
+          <option value="emg">EMG · 2 voies</option>
+          <option value="ecg">ECG</option>
+          <option value="test">Signal de test</option>
+        </select>
+      </div>
+      <div class="field"><span>Voie ExG affichée</span>
+        <select id="emgView">
+          <option value="both">CH1 + CH2</option>
+          <option value="ch1">CH1 seule</option>
+          <option value="ch2">CH2 seule</option>
+        </select>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Acquisition</legend>
+      <div class="field"><span>Fréquence (Hz)</span><input id="rate" type="number" value="51.2" step="0.1" min="1"></div>
+      <div class="btns" style="margin-top:8px">
+        <button id="btnStartAll">Démarrer tout</button>
+        <button id="btnStopAll" disabled>Arrêter tout</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Calibration IMU</legend>
+      <div class="field"><span>Plage accéléro</span>
+        <select id="accelFS">
+          <option value="2">± 2 g</option>
+          <option value="4">± 4 g</option>
+          <option value="8">± 8 g</option>
+          <option value="16">± 16 g</option>
+        </select>
+      </div>
+      <div class="field"><span>Plage gyro</span>
+        <select id="gyroFS">
+          <option value="125">± 125 °/s</option>
+          <option value="250" selected>± 250 °/s</option>
+          <option value="500">± 500 °/s</option>
+          <option value="1000">± 1000 °/s</option>
+          <option value="2000">± 2000 °/s</option>
+        </select>
+      </div>
+      <p class="hint">Accel en m/s², gyro en °/s. Magnéto laissé en brut. La plage doit correspondre à la config de l'appareil.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Canaux affichés</legend>
+      <div id="chanList"><span class="hint">apparaissent au démarrage du flux.</span></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Enregistrement (intervalle synchro)</legend>
+      <div class="btns">
+        <button id="btnT0" class="rec">● T0 — démarrer l'enregistrement</button>
+        <button id="btnEnd" disabled>■ Fin de l'intervalle</button>
+        <button id="btnCsv" disabled>⤓ Télécharger le CSV</button>
+      </div>
+      <div class="readout" id="recInfo">aucun intervalle enregistré.</div>
+      <p class="hint">T0 fixe l'origine de temps commune à tous les appareils (horloge du PC). Le CSV ne contient que l'intervalle T0→Fin.</p>
+    </fieldset>
+  </section>
+
+  <section class="stage">
+    <div class="scope-wrap"><canvas id="scope"></canvas></div>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+
+<script type="module">
+  const SDK_URL = './dist/shimmer-web-sdk.esm.js';
+  const CAM_SERVER = 'http://127.0.0.1:8000';   // serveur caméras local (camera_server.py)
+  async function camStart(){
+    try{ const r=await fetch(CAM_SERVER+'/start',{method:'POST'}); await r.json();
+         log('Caméras : enregistrement démarré.','good'); }
+    catch(e){ log('Caméras injoignables — lance camera_server.py. (EMG seul)','err'); }
+  }
+  async function camStop(){
+    try{ await fetch(CAM_SERVER+'/stop',{method:'POST'}); log('Caméras : arrêtées.'); }
+    catch(e){ /* serveur absent : on ignore */ }
+  }
+  const WINDOW = 600;
+  const LANE_H = 60, HEAD_H = 26, PAD = 8, LABEL_W = 150;
+  const PALETTE = ['#4ad6c8','#f0883e','#7ee787','#79c0ff','#ff7b72','#d2a8ff','#ffd866','#56d4dd','#f778ba','#a5d6ff'];
+  const DEV_COLOR = ['#4ad6c8','#f0883e','#d2a8ff','#7ee787','#ff7b72','#79c0ff'];
+
+  const $ = (id)=>document.getElementById(id);
+  const logEl=$('log');
+  function log(m,c=''){const d=document.createElement('div');if(c)d.className=c;d.textContent=`${new Date().toLocaleTimeString()}  ${m}`;logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;}
+
+  let SDK;
+  try { SDK = await import(SDK_URL); log('SDK chargé.','good'); }
+  catch(e){ log(`Impossible de charger le SDK depuis ${SDK_URL}`,'err'); log('Construis-le (npm run build) et sers la page sur localhost.','err'); }
+
+  // ----- état multi-appareils -----
+  const devices = []; // {id,label,client,connected,streaming,traces:Map,records:[],colorIdx}
+  let recording=false, t0=0, tEnd=0, exgGain=0, t0Abs=0;
+  const hidden=new Set();          // canaux masqués (plot + CSV)
+  const channelOrder=[];           // ordre stable d'apparition
+  const chanBoxes=new Map();       // nom -> case à cocher
+  let chanInit=false;
+
+  // Choix CH1/CH2 piloté par le sélecteur "Voie ExG affichée".
+  function ruleHide(name, view){
+    if(!/Exg/.test(name)) return false;                         // ne concerne que l'ExG
+    if(/Status/.test(name) || /Exg2_/.test(name)) return true;  // masque status + 2e puce
+    if(view==='ch1') return /Exg\d_CH2/.test(name);
+    if(view==='ch2') return /Exg\d_CH1/.test(name);
+    return false;                                               // both
+  }
+  function applyToChannel(name){
+    const hide=ruleHide(name, $('emgView').value);
+    hide?hidden.add(name):hidden.delete(name);
+    const cb=chanBoxes.get(name); if(cb) cb.checked=!hide;
+  }
+  function applyEmgView(){ channelOrder.forEach(applyToChannel); resizeCanvas(); }
+  $('emgView').addEventListener('change', applyEmgView);
+
+  function ensureChannelUI(name){
+    if(channelOrder.includes(name)) return;
+    channelOrder.push(name);
+    const wrap=$('chanList');
+    if(!chanInit){ wrap.innerHTML=''; chanInit=true; }
+    const lab=document.createElement('label'); lab.className='row';
+    lab.innerHTML='<input type="checkbox" checked> '+name;
+    const cb=lab.querySelector('input');
+    cb.addEventListener('change',()=>{ cb.checked?hidden.delete(name):hidden.add(name); resizeCanvas(); });
+    wrap.appendChild(lab);
+    chanBoxes.set(name, cb);
+    applyToChannel(name);          // applique le choix CH1/CH2 dès l'apparition du canal
+  }
+
+  // ExG (ADS1292R) brut -> mV.  Formule officielle Shimmer (API C#) :
+  //   24 bits : brut * (2420 / gain)       / (2^23 - 1)
+  //   16 bits : brut * (2420 / (gain * 2)) / (2^15 - 1)   <- facteur 2 supplémentaire
+  // Gain selon le mode : EMG=12, ECG=4, signal de test=1.
+  function exgToMv(name, raw){
+    if(!exgGain) return null;
+    if(/Exg\d_CH\d_16Bit/.test(name)) return raw * (2420/(exgGain*2)) / 32767;
+    if(/Exg\d_CH\d_24Bit/.test(name)) return raw * (2420/exgGain) / 8388607;
+    return null;
+  }
+
+  // IMU brut -> unités physiques. Le SDK ne calibre pas l'inertiel : on le fait ici.
+  //   accel : g = brut * plage_g / 32768 ; puis m/s² = g * 9.80665
+  //   gyro  : °/s = brut * plage_dps / 32768
+  // (magnéto laissé en brut faute de plage/chip fiable)
+  function imuToPhysical(name, raw){
+    if(/(LN|WR)_ACCEL_[XYZ]/.test(name)){
+      const fs = parseFloat(document.getElementById('accelFS').value) || 2;
+      return { val: (raw * fs / 32768) * 9.80665, unit: 'm/s²' };
+    }
+    if(/^GYRO_[XYZ]/.test(name)){
+      const fs = parseFloat(document.getElementById('gyroFS').value) || 250;
+      return { val: raw * fs / 32768, unit: 'deg/s' };
+    }
+    return null;
+  }
+
+  function maskFromCheckboxes(){
+    const B=SDK?.SensorBitmapShimmer3||{}; let m=0;
+    document.querySelectorAll('[data-sensor]').forEach(cb=>{ if(cb.checked) m|=(B[cb.dataset.sensor]||0); });
+    return m;
+  }
+  function updHeader(){ $('hdr').textContent=`web bluetooth · ${devices.length} appareil${devices.length>1?'s':''}`; }
+  function anyStreaming(){ return devices.some(d=>d.streaming); }
+
+  function renderDevList(){
+    const wrap=$('devList'); wrap.innerHTML='';
+    devices.forEach(d=>{
+      const el=document.createElement('div'); el.className='dev';
+      const col=DEV_COLOR[d.colorIdx%DEV_COLOR.length];
+      el.innerHTML=`<div class="top">
+          <span class="dot ${d.streaming?'stream':(d.connected?'on':'')}"></span>
+          <input class="name" value="${d.label}">
+          <button class="x">✕</button>
+        </div>`;
+      el.querySelector('.name').style.borderColor=col;
+      el.querySelector('.name').addEventListener('input',e=>{ d.label=e.target.value; });
+      el.querySelector('.x').addEventListener('click',async()=>{
+        try{ await d.client?.disconnect(); }catch{}
+        const i=devices.indexOf(d); if(i>=0) devices.splice(i,1);
+        renderDevList(); updHeader(); resizeCanvas();
+      });
+      wrap.appendChild(el);
+    });
+  }
+
+  $('btnAdd').addEventListener('click', async ()=>{
+    if(!SDK){ log('SDK non chargé.','err'); return; }
+    const colorIdx=devices.length;
+    const dev={ id:Date.now()+Math.random(), label:`S${devices.length+1}`, client:null,
+                connected:false, streaming:false, traces:new Map(), records:[], colorIdx };
+    try{
+      dev.client=new SDK.Shimmer3RClient({ timestampFmt:'u24', debug:true });
+      dev.client.onStatus=(m)=>log(`[${dev.label}] ${m}`);
+      dev.client.onStreamFrame=(oc)=>onFrame(dev,oc);
+      log(`[${dev.label}] sélecteur Bluetooth…`);
+      await dev.client.connect();
+      dev.connected=true; devices.push(dev);
+      renderDevList(); updHeader(); resizeCanvas();
+      log(`[${dev.label}] connecté.`,'good');
+    }catch(e){ log(`connexion échouée : ${e.message||e}`,'err'); }
+  });
+
+  function onFrame(dev,oc){
+    const seen=new Set();
+    for(const f of oc.fields) if(f.kind==='cal') seen.add(f.name);
+    const picked=[];
+    for(const f of oc.fields){
+      if(typeof f.value!=='number'||!isFinite(f.value)) continue;
+      if(f.name.toUpperCase().includes('TIMESTAMP')) continue;
+      const use=f.kind==='cal'||(f.kind!=='cal'&&!seen.has(f.name));
+      if(!use) continue;
+      let val=f.value, unit=f.unit||'';
+      const mv=exgToMv(f.name, f.value);
+      const imu=imuToPhysical(f.name, f.value);
+      if(mv!==null){ val=mv; unit='mV'; }
+      else if(imu){ val=imu.val; unit=imu.unit; }
+      picked.push({name:f.name, value:val, unit});
+      let t=dev.traces.get(f.name);
+      if(!t){ t={buf:[],unit}; dev.traces.set(f.name,t); ensureChannelUI(f.name); resizeCanvas(); }
+      t.buf.push(val); if(t.buf.length>WINDOW) t.buf.shift();
+    }
+    if(recording){
+      const tRel=performance.now()-t0;
+      dev.records.push({ t:tRel, fields:picked });
+    }
+  }
+
+  // ----- rendu canvas multi-appareils -----
+  const cvs=$('scope'), ctx=cvs.getContext('2d');
+  function visibleCount(d){ let n=0; d.traces.forEach((t,name)=>{ if(!hidden.has(name)) n++; }); return n; }
+  function neededHeight(){
+    let lanes=0; devices.forEach(d=>lanes+=visibleCount(d));
+    return PAD*2 + devices.length*HEAD_H + lanes*LANE_H + 40;
+  }
+  function resizeCanvas(){
+    const wrap=cvs.parentElement, d=window.devicePixelRatio||1;
+    const w=wrap.clientWidth, h=Math.max(wrap.clientHeight, neededHeight());
+    cvs.style.width=w+'px'; cvs.style.height=h+'px';
+    cvs.width=w*d; cvs.height=h*d; ctx.setTransform(d,0,0,d,0,0);
+  }
+  window.addEventListener('resize',resizeCanvas);
+
+  function draw(){
+    requestAnimationFrame(draw);
+    const w=parseFloat(cvs.style.width)||cvs.clientWidth;
+    ctx.clearRect(0,0,w,parseFloat(cvs.style.height)||cvs.clientHeight);
+    if(!devices.length){ ctx.fillStyle='#7d8da3'; ctx.font='13px ui-monospace,monospace'; ctx.fillText('ajoute un appareil pour commencer…',18,28); return; }
+    let y=PAD; const plotW=w-LABEL_W-16;
+    devices.forEach(d=>{
+      const col=DEV_COLOR[d.colorIdx%DEV_COLOR.length];
+      ctx.fillStyle=col; ctx.font='600 12px ui-monospace,monospace';
+      ctx.fillText(`▌ ${d.label}${d.streaming?' · live':''}`, 12, y+17);
+      ctx.strokeStyle='#1b2530'; ctx.beginPath(); ctx.moveTo(0,y+HEAD_H-1); ctx.lineTo(w,y+HEAD_H-1); ctx.stroke();
+      y+=HEAD_H;
+      let ci=0;
+      d.traces.forEach((t,name)=>{
+        if(hidden.has(name)) return;
+        const yc=y+LANE_H/2, c=PALETTE[ci%PALETTE.length]; ci++;
+        ctx.strokeStyle='#141d27'; ctx.beginPath(); ctx.moveTo(LABEL_W,yc); ctx.lineTo(w-16,yc); ctx.stroke();
+        const buf=t.buf; let mn=Infinity,mx=-Infinity; for(const v of buf){if(v<mn)mn=v;if(v>mx)mx=v;}
+        if(!isFinite(mn)){mn=-1;mx=1;} const span=(mx-mn)||1, usable=LANE_H*0.7;
+        ctx.strokeStyle=c; ctx.lineWidth=1.4; ctx.beginPath();
+        buf.forEach((v,k)=>{ const x=LABEL_W+(k/(WINDOW-1))*plotW; const yy=yc+usable/2-((v-mn)/span)*usable; k?ctx.lineTo(x,yy):ctx.moveTo(x,yy); });
+        ctx.stroke();
+        const last=buf.length?buf[buf.length-1]:0;
+        ctx.fillStyle=c; ctx.font='600 11px ui-monospace,monospace'; ctx.fillText(name,16,yc-3);
+        ctx.fillStyle='#e6edf3'; ctx.font='11px ui-monospace,monospace'; ctx.fillText(`${last.toFixed(2)} ${t.unit}`,16,yc+12);
+        y+=LANE_H;
+      });
+    });
+  }
+  resizeCanvas(); draw();
+
+  // ----- acquisition globale -----
+  const delay=(ms)=>new Promise(r=>setTimeout(r,ms));
+
+  // L'INQUIRY construit le schéma de décodage. Sans elle, rien (ou des valeurs
+  // fausses) ne se décode — notamment l'ExG/EMG. On la force jusqu'à succès.
+  async function ensureSchema(d, tries=4){
+    for(let i=1;i<=tries;i++){
+      try{ await d.client.inquiry(); return true; }
+      catch(e){ log(`[${d.label}] inquiry ${i}/${tries} échec (${e.message||e})…`); await delay(500); }
+    }
+    log(`[${d.label}] schéma non confirmé — décodage probablement incomplet.`,'err');
+    return false;
+  }
+
+  async function tryStart(d, rate, mask, exgMode, attempt=1){
+    const MAX=3;
+    try{
+      try{ await d.client.stopStreaming(); }catch{}   // réinitialise un état résiduel
+      d.traces.clear();
+      await d.client.setSamplingRate(rate);           // doit précéder l'ExG (oversampling ADS1292R)
+      await d.client.setSensors(mask);
+      if(exgMode!=='none') await d.client.setInternalExpPower(1);  // alim carte ExG
+      if(exgMode==='emg')      await d.client.enableEMG16Bit();
+      else if(exgMode==='ecg') await d.client.enableECG16Bit();
+      else if(exgMode==='test') await d.client.enableEXGTestSignal16Bit();
+      await ensureSchema(d);                          // garantit le schéma (sinon pas d'EMG décodé)
+      await d.client.startStreaming();
+      d.streaming=true;
+      log(`[${d.label}] streaming démarré${exgMode!=='none'?` (ExG: ${exgMode}, mV)`:''}.`,'good');
+      return true;
+    }catch(e){
+      if(attempt<MAX){
+        log(`[${d.label}] échec (${e.message||e}) — réessai ${attempt+1}/${MAX}…`);
+        await delay(700);
+        return tryStart(d, rate, mask, exgMode, attempt+1);
+      }
+      log(`[${d.label}] abandon après ${MAX} essais : ${e.message||e}`,'err');
+      return false;
+    }
+  }
+
+  $('btnStartAll').addEventListener('click', async ()=>{
+    const connected=devices.filter(d=>d.connected);
+    if(!connected.length){ log('aucun appareil connecté.','err'); return; }
+    const rate=parseFloat($('rate').value)||51.2; const mask=maskFromCheckboxes();
+    const exgMode=$('exgMode').value;
+    exgGain = exgMode==='emg'?12 : exgMode==='ecg'?4 : exgMode==='test'?1 : 0;
+    if(!mask && exgMode==='none'){ log('sélectionne au moins un capteur (ou un mode ExG).','err'); return; }
+    for(const d of connected){
+      await tryStart(d, rate, mask, exgMode);
+      renderDevList(); resizeCanvas();
+      await delay(400);   // échelonnement entre appareils
+    }
+    $('btnStopAll').disabled=!anyStreaming();
+  });
+
+  $('btnStopAll').addEventListener('click', async ()=>{
+    for(const d of devices.filter(d=>d.streaming)){
+      try{ await d.client.stopStreaming(); d.streaming=false; log(`[${d.label}] arrêté.`); }catch(e){ log(e.message||e,'err'); }
+    }
+    renderDevList(); $('btnStopAll').disabled=true;
+  });
+
+  // ----- enregistrement / intervalle synchro -----
+  function fmtMs(ms){ const s=ms/1000; return `${s.toFixed(2)} s`; }
+  function updRecInfo(){
+    if(recording){ $('recInfo').innerHTML=`<b style="color:var(--rec)">● enregistrement…</b>  T0 fixé.`; }
+    else if(tEnd>t0){
+      const tot=devices.reduce((a,d)=>a+d.records.length,0);
+      $('recInfo').innerHTML=`intervalle : <b>${fmtMs(tEnd-t0)}</b> · <b>${tot}</b> échantillons (${devices.length} app.)`;
+    } else $('recInfo').textContent='aucun intervalle enregistré.';
+  }
+
+  $('btnT0').addEventListener('click', ()=>{
+    if(!anyStreaming()){ log('démarre le flux avant T0.','err'); return; }
+    devices.forEach(d=>d.records=[]);
+    t0=performance.now(); t0Abs=Date.now(); tEnd=0; recording=true;
+    $('btnT0').classList.add('active'); $('btnT0').disabled=true;
+    $('btnEnd').disabled=false; $('btnCsv').disabled=true;
+    log('T0 fixé — enregistrement de l\'intervalle.','good'); updRecInfo();
+    camStart();   // déclenche aussi les caméras
+  });
+
+  $('btnEnd').addEventListener('click', ()=>{
+    tEnd=performance.now(); recording=false;
+    $('btnT0').classList.remove('active'); $('btnT0').disabled=false;
+    $('btnEnd').disabled=true; $('btnCsv').disabled=false;
+    log(`Fin de l'intervalle (${fmtMs(tEnd-t0)}).`,'good'); updRecInfo();
+    camStop();    // arrête aussi les caméras
+  });
+
+  $('btnCsv').addEventListener('click', ()=>{
+    const rows=['device,t_rel_ms,unix_s,channel,value,unit'];
+    devices.forEach(d=>{
+      const safe=(d.label||'dev').replace(/[",\n]/g,' ');
+      d.records.forEach(r=>{
+        r.fields.forEach(f=>{
+          if(hidden.has(f.name)) return;
+          rows.push(`${safe},${r.t.toFixed(2)},${((t0Abs+r.t)/1000).toFixed(4)},${f.name},${f.value},${f.unit}`);
+        });
+      });
+    });
+    if(rows.length===1){ log('aucune donnée enregistrée.','err'); return; }
+    const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    const stamp=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+    a.download=`shimmer3r_${stamp}.csv`; a.click(); URL.revokeObjectURL(a.href);
+    log(`CSV exporté (${rows.length-1} lignes).`,'good');
+  });
+</script>
+</body>
+</html>

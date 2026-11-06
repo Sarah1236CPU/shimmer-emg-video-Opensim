@@ -1,0 +1,68 @@
+{
+  "name": "@shimmerresearch/shimmer-web-sdk",
+  "version": "0.1.7",
+  "description": "Web Bluetooth and Web Serial API for Shimmer sensor devices (Shimmer3R, Verisense IMU/Pulse+)",
+  "type": "module",
+  "main": "dist/shimmer-web-sdk.cjs",
+  "module": "dist/shimmer-web-sdk.esm.js",
+  "types": "dist/shimmer-web-sdk.d.ts",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShimmerResearch/shimmer-web-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ShimmerResearch/shimmer-web-sdk/issues"
+  },
+  "homepage": "https://github.com/ShimmerResearch/shimmer-web-sdk#readme",
+  "exports": {
+    ".": {
+      "import": "./dist/shimmer-web-sdk.esm.js",
+      "require": "./dist/shimmer-web-sdk.cjs",
+      "types": "./dist/shimmer-web-sdk.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "rollup -c rollup.config.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src tests --ext .ts",
+    "docs": "typedoc --out docs src/index.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "shimmer",
+    "bluetooth",
+    "web-bluetooth",
+    "ble",
+    "sensor",
+    "imu",
+    "emg",
+    "ecg",
+    "gsr",
+    "ppg"
+  ],
+  "license": "BSD-3-Clause",
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@types/web-bluetooth": "^0.0.21",
+    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/parser": "^8.60.0",
+    "eslint": "^10.4.0",
+    "prettier": "^3.8.3",
+    "rollup": "^4.14.0",
+    "rollup-plugin-dts": "^6.1.0",
+    "tslib": "^2.6.2",
+    "typedoc": "^0.28.19",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  }
+}
