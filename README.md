@@ -73,8 +73,8 @@ Toutes les données (EMG et images) sont horodatées dans la **même base de tem
 ### 1. Cloner et compiler le SDK
 
 ```bash
-git clone https://github.com/<ton-utilisateur>/<ton-depot>.git
-cd <ton-depot>
+git clone https://github.com/Sarah1236CPU/shimmer-emg-video-Opensim.git
+cd shimmer-emg-video-Opensim
 npm install
 npm run build        # génère dist/shimmer-web-sdk.esm.js
 ```
